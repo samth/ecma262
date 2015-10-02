@@ -35517,7 +35517,7 @@ my_text = JSON.stringify(a); // This must throw a TypeError.
 
           <!-- es6num="25.4.1.7" -->
           <emu-clause id="sec-rejectpromise" aoid="RejectPromise">
-            <h1>RejectPromise ( promise, reason)</h1>
+            <h1>RejectPromise ( promise, reason )</h1>
             <p>When the RejectPromise abstract operation is called with arguments _promise_ and _reason_ the following steps are taken:</p>
             <emu-alg>
               1. Assert: the value of _promise_'s [[PromiseState]] internal slot is `"pending"`.
@@ -35526,6 +35526,7 @@ my_text = JSON.stringify(a); // This must throw a TypeError.
               1. Set the value of _promise_'s [[PromiseFulfillReactions]] internal slot to *undefined*.
               1. Set the value of _promise_'s [[PromiseRejectReactions]] internal slot to *undefined*.
               1. Set the value of _promise_'s [[PromiseState]] internal slot to `"rejected"`.
+              1. If the value of _promise_'s [[PromiseIsHandled]] internal slot is *false*, perform HostPromiseRejectionTracker(_promise_, the running execution context, `"reject"`).
               1. Return TriggerPromiseReactions(_reactions_, _reason_).
             </emu-alg>
           </emu-clause>
@@ -35539,6 +35540,29 @@ my_text = JSON.stringify(a); // This must throw a TypeError.
                   1. Perform EnqueueJob(`"PromiseJobs"`, PromiseReactionJob, &laquo;_reaction_, _argument_&raquo;).
               1. Return *undefined*.
             </emu-alg>
+          </emu-clause>
+
+          <emu-clause id="sec-host-promise-rejection-tracker" aoid="HostPromiseRejectionTracker">
+            <h1>HostPromiseRejectionTracker ( promise, executionContext, operation )</h1>
+
+            <p>HostPromiseRejectionTracker is an implementation-defined abstract operation that allows host environments to track promise rejections.</p>
+
+            <p>An implementation of HostPromiseRejectionTracker must complete normally in all cases. The default implementation of HostPromiseRejectionTracker is to do nothing.</p>
+
+            <emu-note>
+              <p>HostPromiseRejectionTracker is called in two scenarios:</p>
+
+              <ul>
+                <li>When a promise is rejected without any handlers, it is called with its _operation_ argument set to `"reject"`.</li>
+                <li>When a handler is added to a rejected promise for the first time, it is called with its _operation_ argument set to `"handle"`.</li>
+              </ul>
+
+              <p>A typical implementation of HostPromiseRejectionTracker might try to notify developers of unhandled rejections, while also being careful to notify them if such previous notifications are later invalidated by new handlers being attached.</p>
+            </emu-note>
+
+            <emu-note>
+              <p>If _operation_ is `"handle"`, an implementation should not hold a reference to promise in a way that would interfere with garbage collection. An implementation may hold a reference to promise if operation is `"reject"`, since it is expected that rejections will be rare and not on hot code paths.</p>
+            </emu-note>
           </emu-clause>
         </emu-clause>
 
@@ -35601,6 +35625,7 @@ my_text = JSON.stringify(a); // This must throw a TypeError.
               1. Set _promise_'s [[PromiseState]] internal slot to `"pending"`.
               1. Set _promise_'s [[PromiseFulfillReactions]] internal slot to a new empty List.
               1. Set _promise_'s [[PromiseRejectReactions]] internal slot to a new empty List.
+              1. Set _promise_'s [[PromiseIsHandled]] internal slot to *false*.
               1. Let _resolvingFunctions_ be CreateResolvingFunctions(_promise_).
               1. Let _completion_ be Call(_executor_, *undefined*, &laquo;_resolvingFunctions_.[[Resolve]], _resolvingFunctions_.[[Reject]]&raquo;).
               1. If _completion_ is an abrupt completion, then
@@ -35881,7 +35906,9 @@ my_text = JSON.stringify(a); // This must throw a TypeError.
                     1. Perform EnqueueJob(`"PromiseJobs"`, PromiseReactionJob, &laquo;_fulfillReaction_, _value_&raquo;).
                 1. Else if the value of _promise_'s [[PromiseState]] internal slot is `"rejected"`,
                     1. Let _reason_ be the value of _promise_'s [[PromiseResult]] internal slot.
+                    1. If the value of _promise_'s [[PromiseIsHandled]] internal slot is *false*, perform HostPromiseRejectionTracker(_promise_, the running execution context, `"handle"`).
                     1. Perform EnqueueJob(`"PromiseJobs"`, PromiseReactionJob, &laquo;_rejectReaction_, _reason_&raquo;).
+                1. Set _promise_'s [[PromiseIsHandled]] internal slot to *true*.
                 1. Return _resultCapability_.[[Promise]].
               </emu-alg>
             </emu-clause>
@@ -35940,6 +35967,14 @@ my_text = JSON.stringify(a); // This must throw a TypeError.
                 </td>
                 <td>
                   A List of PromiseReaction records to be processed when/if the promise transitions from the `"pending"` state to the `"rejected"` state.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  [[PromiseIsHandled]]
+                </td>
+                <td>
+                  A boolean indicating whether the promise has ever had a fulfillment or rejection handler; used in unhandled rejection tracking.
                 </td>
               </tr>
              </tbody>
